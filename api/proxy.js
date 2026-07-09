@@ -10,14 +10,27 @@ export const config = { runtime: "edge" };
 const GAS_EXEC_URL =
   "https://script.google.com/macros/s/AKfycbxXHaLP5Nm7NAXxNskc5nsThgRoIkFPhaw3QQrLmtciwKroxdmSWiDdq-bP9U36B4LD/exec";
 
+const GAS_ASSET_HOST = "https://script.google.com";
+
 export default async function handler(request) {
   const incomingUrl = new URL(request.url);
 
-  // Reconstruye la URL destino conservando querystring (parámetros GET, page, etc.)
-  const targetUrl = new URL(GAS_EXEC_URL);
-  incomingUrl.searchParams.forEach((value, key) => {
-    targetUrl.searchParams.set(key, value);
-  });
+  // La raíz ("/") es la propia app -> va contra el exec.
+  // Cualquier otra ruta (JS, CSS, recursos internos que pide la app tras
+  // cargar) -> se pide la MISMA ruta pero contra script.google.com,
+  // preservando path + querystring. Antes esto se ignoraba y siempre se
+  // devolvía el HTML del exec disfrazado de JS/CSS -> página en blanco.
+  let targetUrl;
+  if (incomingUrl.pathname === "/" || incomingUrl.pathname === "/api/proxy") {
+    targetUrl = new URL(GAS_EXEC_URL);
+    incomingUrl.searchParams.forEach((value, key) => {
+      targetUrl.searchParams.set(key, value);
+    });
+  } else {
+    targetUrl = new URL(
+      GAS_ASSET_HOST + incomingUrl.pathname + incomingUrl.search
+    );
+  }
 
   const init = {
     method: request.method,
